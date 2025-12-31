@@ -3,16 +3,73 @@ require('dotenv').config();
 const http = require('http');
 const url = require('url');
 
-const REQUIRED_HEADERS = ["nombre", "precio", "stock", "activo"];
-
-// Configuración CORS
-const setCORSHeaders = (res) => {
+// Exportar para Vercel
+module.exports = (req, res) => {
+  // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Manejar preflight requests
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  const parsedUrl = url.parse(req.url, true);
+  const path = parsedUrl.pathname;
+
+  // Endpoint de productos
+  if (path === '/api/products' && req.method === 'GET') {
+    return handleProducts(req, res, parsedUrl);
+  }
+
+  // Endpoint de health check
+  if (path === '/health' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    }));
+    return;
+  }
+
+  // Endpoint raíz
+  if (path === '/' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      message: 'Lunaris API v1.0.0',
+      endpoints: {
+        products: '/api/products?page=1&limit=12',
+        health: '/health'
+      }
+    }));
+    return;
+  }
+
+  // 404 para rutas no encontradas
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ 
+    error: 'Not Found',
+    message: 'Endpoint not found',
+    availableEndpoints: ['/api/products', '/health', '/']
+  }));
 };
 
-// Funciones helper
+// Manejador de productos
+async function handleProducts(req, res, parsedUrl) {
+  const page = parseInt(parsedUrl.query.page || '1');
+  const limit = parseInt(parsedUrl.query.limit || '12');
+  
+  const result = await getProducts(page, limit);
+  
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(result));
+}
+
+const REQUIRED_HEADERS = ["nombre", "precio", "stock", "activo"];
 function buildResponse(products, success = true, page = 1, total = 0, totalPages = 1, limit = 12) {
   console.log("📤 API Response:", {
     success,
@@ -196,71 +253,77 @@ async function getProducts(page = 1, limit = 12) {
   }
 }
 
-// Servidor HTTP
-const server = http.createServer(async (req, res) => {
-  setCORSHeaders(res);
+// Código local para desarrollo (solo se ejecuta si no es en Vercel)
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  const setCORSHeaders = (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  };
 
-  // Manejar preflight requests
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
+  const server = http.createServer(async (req, res) => {
+    setCORSHeaders(res);
 
-  const parsedUrl = url.parse(req.url, true);
-  const path = parsedUrl.pathname;
+    // Manejar preflight requests
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
 
-  // Endpoint de productos
-  if (path === '/api/products' && req.method === 'GET') {
-    const page = parseInt(parsedUrl.query.page || '1');
-    const limit = parseInt(parsedUrl.query.limit || '12');
-    
-    const result = await getProducts(page, limit);
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(result));
-    return;
-  }
+    const parsedUrl = url.parse(req.url, true);
+    const path = parsedUrl.pathname;
 
-  // Endpoint de health check
-  if (path === '/health' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    // Endpoint de productos
+    if (path === '/api/products' && req.method === 'GET') {
+      const page = parseInt(parsedUrl.query.page || '1');
+      const limit = parseInt(parsedUrl.query.limit || '12');
+      
+      const result = await getProducts(page, limit);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    // Endpoint de health check
+    if (path === '/health' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        version: '1.0.0'
+      }));
+      return;
+    }
+
+    // Endpoint raíz
+    if (path === '/' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        message: 'Lunaris API v1.0.0',
+        endpoints: {
+          products: '/api/products?page=1&limit=12',
+          health: '/health'
+        }
+      }));
+      return;
+    }
+
+    // 404 para rutas no encontradas
+    res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ 
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      version: '1.0.0'
+      error: 'Not Found',
+      message: 'Endpoint not found',
+      availableEndpoints: ['/api/products', '/health', '/']
     }));
-    return;
-  }
+  });
 
-  // Endpoint raíz
-  if (path === '/' && req.method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ 
-      message: 'Lunaris API v1.0.0',
-      endpoints: {
-        products: '/api/products?page=1&limit=12',
-        health: '/health'
-      }
-    }));
-    return;
-  }
+  const PORT = process.env.PORT || 3001;
 
-  // 404 para rutas no encontradas
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ 
-    error: 'Not Found',
-    message: 'Endpoint not found',
-    availableEndpoints: ['/api/products', '/health', '/']
-  }));
-});
-
-const PORT = process.env.PORT || 3001;
-
-server.listen(PORT, () => {
-  console.log(`🚀 Lunaris API running on port ${PORT}`);
-  console.log(`📊 Products endpoint: http://localhost:${PORT}/api/products`);
-  console.log(`💚 Health check: http://localhost:${PORT}/health`);
-});
-
-module.exports = server;
+  server.listen(PORT, () => {
+    console.log(`🚀 Lunaris API running on port ${PORT}`);
+    console.log(`📊 Products endpoint: http://localhost:${PORT}/api/products`);
+    console.log(`💚 Health check: http://localhost:${PORT}/health`);
+  });
+}
