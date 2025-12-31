@@ -1,0 +1,1 @@
+{"name":"lunaris-api","version":"1.0.0","description":"API para productos Lunaris con Google Sheets","main":"route.js","scripts":{"start":"node route.js","dev":"node route.js"},"keywords":["api","products","google-sheets"],"author":"","license":"ISC","engines":{"node":">=14.0.0"},"dependencies":{"dotenv":"^17.2.3"}}
